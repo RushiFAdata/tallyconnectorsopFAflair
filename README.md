@@ -43,7 +43,8 @@ body{background:var(--canvas); color:var(--ink); font-family:var(--body);
   font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased}
 .wrap{max-width:1140px; margin:0 auto; padding:24px 16px 72px}
 h1,h2,h3{font-family:var(--display); text-wrap:balance; margin:0}
-.top{display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; margin-bottom:16px}
+.top{display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px}
+.top-r{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
 h1{font-size:25px; font-weight:700; letter-spacing:-.01em; color:var(--navy)}
 .sub{color:var(--muted); font-size:13px; margin-top:3px}
 .seg{display:inline-flex; background:var(--raised); border:1px solid var(--line); border-radius:999px; padding:3px}
@@ -57,15 +58,29 @@ h3.ch{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(
 label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
   color:var(--muted); font-weight:600; margin-bottom:5px}
 input,select,button,textarea{font-family:var(--body); font-size:14px}
-input[type=text],input[type=search],select{width:100%; padding:8px 9px; border:1px solid var(--line);
+input[type=text],input[type=password],input[type=search],select{width:100%; padding:8px 9px; border:1px solid var(--line);
   border-radius:7px; background:var(--surface); color:var(--ink)}
 input:focus-visible,select:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
 button{cursor:pointer; border-radius:7px; border:1px solid transparent; font-weight:600}
 .btn{background:var(--surface); border:1px solid var(--line); color:var(--muted); padding:7px 13px; font-size:13px}
 .btn:hover{color:var(--ink)}
+.btn:disabled{opacity:.5; cursor:not-allowed}
 .btn-primary{background:var(--accent); color:#fff; padding:9px 17px; border:none}
 .btn-primary:hover{filter:brightness(.94)}
+.btn-sync{display:inline-flex; align-items:center; gap:6px}
+.dot{width:8px; height:8px; border-radius:50%; background:var(--faint); display:inline-block}
+.dot.on{background:var(--good)}
 .row-acts{display:flex; gap:7px; flex-wrap:wrap}
+
+/* modal */
+.modal-bg{position:fixed; inset:0; background:rgba(14,19,28,.55); display:grid; place-items:center;
+  padding:16px; z-index:20}
+.modal{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  width:100%; max-width:440px; padding:18px; box-shadow:0 16px 40px rgba(0,0,0,.25)}
+.modal h2{font-size:18px; color:var(--navy); margin-bottom:4px}
+.modal .fg{margin-top:11px}
+.modal .mfoot{display:flex; justify-content:space-between; align-items:center; gap:8px;
+  flex-wrap:wrap; margin-top:16px; padding-top:12px; border-top:1px solid var(--line)}
 
 /* tiles */
 .tiles{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px}
@@ -172,7 +187,7 @@ input.cb{width:17px; height:17px; margin:3px 0 0; accent-color:var(--good); curs
 .hide{display:none !important}
 .toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--navy);
   color:var(--canvas); padding:7px 15px; border-radius:999px; font-size:12.5px; font-weight:600;
-  opacity:0; transition:opacity .18s; pointer-events:none; z-index:9}
+  opacity:0; transition:opacity .18s; pointer-events:none; z-index:30}
 .toast.on{opacity:1}
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .toast{color:#0E131C} }
 :root[data-theme="dark"] .toast{color:#0E131C}
@@ -189,9 +204,13 @@ input.cb{width:17px; height:17px; margin:3px 0 0; accent-color:var(--good); curs
       <h1>Tally Onboarding Tracker</h1>
       <div class="sub">FA Connect &middot; distributor-wise SOP validation</div>
     </div>
-    <div class="seg" id="views" role="group" aria-label="View">
-      <button type="button" data-v="sum" aria-pressed="true">Summary</button>
-      <button type="button" data-v="chk" aria-pressed="false" id="btnchk" disabled>Checklist</button>
+    <div class="top-r">
+      <button type="button" class="btn btn-sync hide" id="ghPushBtn">↑ Sync to GitHub</button>
+      <button type="button" class="btn btn-sync" id="ghSetBtn"><i class="dot" id="ghDot"></i> Sync Settings</button>
+      <div class="seg" id="views" role="group" aria-label="View">
+        <button type="button" data-v="sum" aria-pressed="true">Summary</button>
+        <button type="button" data-v="chk" aria-pressed="false" id="btnchk" disabled>Checklist</button>
+      </div>
     </div>
   </div>
 
@@ -293,6 +312,38 @@ input.cb{width:17px; height:17px; margin:3px 0 0; accent-color:var(--good); curs
   </div>
 </div>
 
+<!-- ===== GITHUB SYNC MODAL ===== -->
+<div class="modal-bg hide" id="ghModal" role="dialog" aria-modal="true" aria-labelledby="ghTitle">
+  <div class="modal">
+    <h2 id="ghTitle">GitHub Sync Settings</h2>
+    <div class="sub">Saved only in this browser's localStorage — never in the code.</div>
+    <div class="fg">
+      <label for="ghOwner">GitHub Owner (Username or Org)</label>
+      <input type="text" id="ghOwner" placeholder="e.g. your-username" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label for="ghRepo">Repository Name</label>
+      <input type="text" id="ghRepo" placeholder="e.g. tally-tracker" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label for="ghBranch">Branch</label>
+      <input type="text" id="ghBranch" placeholder="main" value="main" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label for="ghToken">Fine-Grained Personal Access Token (Contents: Read & Write)</label>
+      <input type="password" id="ghToken" placeholder="github_pat_..." autocomplete="off">
+    </div>
+    <div class="mfoot">
+      <button type="button" class="btn" id="ghClear">Clear</button>
+      <div class="row-acts">
+        <button type="button" class="btn" id="ghClose">Close</button>
+        <button type="button" class="btn" id="ghPullNow">Pull</button>
+        <button type="button" class="btn-primary" id="ghSave">Save &amp; Connect</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="file" accept=".xlsx,.xls,.csv,text/csv" hidden>
 <input type="file" id="bfile" accept="application/json" hidden>
 <div class="toast" id="toast" role="status" aria-live="polite">Saved</div>
@@ -352,6 +403,8 @@ var STAGES = [
 (function(){
   "use strict";
   var KEY = "fa_tally_onboarding_data_v2";
+  var GH_KEY = "fa_tally_gh_sync_cfg_v1";
+  var GH_FILE = "tracker-data.json";
   var IDB_NAME = "FATallyTrackerDB";
   var IDB_STORE = "tracker_store";
   var ALL = []; STAGES.forEach(function(s){ s.items.forEach(function(i){ ALL.push(i); }); });
@@ -363,7 +416,7 @@ var STAGES = [
 
   function toast(m){
     var t = $("toast"); t.textContent = m; t.classList.add("on");
-    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("on"); }, 1800);
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("on"); }, 2200);
   }
   function esc(v){ return String(v==null?"":v).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
@@ -374,22 +427,139 @@ var STAGES = [
            d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
   }
 
+  /* ---------- UTF-8 Safe Base64 ---------- */
+  function toBase64(str){
+    var bytes = new TextEncoder().encode(str);
+    var bin = "";
+    for(var i=0; i<bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function fromBase64(b64){
+    var bin = atob(b64.replace(/\s/g, ""));
+    var bytes = new Uint8Array(bin.length);
+    for(var i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  /* ---------- GitHub Sync Engine (Token stored ONLY in localStorage) ---------- */
+  function getGhCfg(){
+    try{
+      var c = JSON.parse(localStorage.getItem(GH_KEY) || "null");
+      if(c && c.owner && c.repo && c.token) return c;
+    }catch(e){}
+    return null;
+  }
+  function paintGhUI(){
+    var cfg = getGhCfg();
+    $("ghDot").classList.toggle("on", !!cfg);
+    $("ghPushBtn").classList.toggle("hide", !cfg);
+  }
+  function ghApiUrl(cfg){
+    return "https://api.github.com/repos/" + encodeURIComponent(cfg.owner) + "/" +
+           encodeURIComponent(cfg.repo) + "/contents/" + GH_FILE;
+  }
+  async function ghPull(quiet){
+    var cfg = getGhCfg();
+    if(!cfg){ if(!quiet) toast("Configure Sync Settings first"); return false; }
+    try{
+      var url = ghApiUrl(cfg) + "?ref=" + encodeURIComponent(cfg.branch || "main") + "&cb=" + Date.now();
+      var res = await fetch(url, {
+        headers: {
+          "Authorization": "Bearer " + cfg.token,
+          "Accept": "application/vnd.github+json"
+        }
+      });
+      if(res.status === 404){
+        if(!quiet) toast("No tracker-data.json in repo yet — click Sync to GitHub to create it");
+        return false;
+      }
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      var meta = await res.json();
+      var remote = JSON.parse(fromBase64(meta.content));
+      if(remote && remote.rows){
+        if(!quiet || !S.rows.length || (remote.savedAt || 0) > (S.savedAt || 0)){
+          applySnapshot(remote);
+          save(true);
+          render();
+          if(!quiet) toast("✔ Pulled latest data from GitHub");
+        }
+        return true;
+      }
+    }catch(err){
+      if(!quiet) toast("GitHub pull failed: " + err.message);
+    }
+    return false;
+  }
+  async function ghPush(){
+    var cfg = getGhCfg();
+    if(!cfg){ openGhModal(); return; }
+    var btn = $("ghPushBtn");
+    btn.disabled = true; btn.textContent = "Syncing…";
+    try{
+      var branch = cfg.branch || "main";
+      var sha = null;
+      var getRes = await fetch(ghApiUrl(cfg) + "?ref=" + encodeURIComponent(branch) + "&cb=" + Date.now(), {
+        headers: {
+          "Authorization": "Bearer " + cfg.token,
+          "Accept": "application/vnd.github+json"
+        }
+      });
+      if(getRes.ok){
+        var existing = await getRes.json();
+        sha = existing.sha;
+      }
+      S.savedAt = Date.now();
+      save(true);
+      var body = {
+        message: "Update " + GH_FILE + " (" + new Date().toISOString().slice(0,16) + ")",
+        content: toBase64(JSON.stringify(getStateSnapshot(), null, 1)),
+        branch: branch
+      };
+      if(sha) body.sha = sha;
+      var putRes = await fetch(ghApiUrl(cfg), {
+        method: "PUT",
+        headers: {
+          "Authorization": "Bearer " + cfg.token,
+          "Accept": "application/vnd.github+json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      if(!putRes.ok){
+        var errTxt = "";
+        try{ var ej = await putRes.json(); errTxt = ej.message || ""; }catch(e){}
+        throw new Error("HTTP " + putRes.status + (errTxt ? " — " + errTxt : ""));
+      }
+      toast("✔ Synced to GitHub");
+    }catch(err){
+      toast("Sync failed: " + err.message);
+    }finally{
+      btn.disabled = false; btn.textContent = "↑ Sync to GitHub";
+    }
+  }
+  function openGhModal(){
+    var cfg = getGhCfg() || {};
+    $("ghOwner").value = cfg.owner || "";
+    $("ghRepo").value = cfg.repo || "";
+    $("ghBranch").value = cfg.branch || "main";
+    $("ghToken").value = cfg.token || "";
+    $("ghModal").classList.remove("hide");
+  }
+  function closeGhModal(){ $("ghModal").classList.add("hide"); }
+
   /* ---------- Unlimited IndexedDB Engine ---------- */
   function openDatabase(){
-    return new Promise(function(resolve, reject){
+    return new Promise(function(resolve){
       if(!window.indexedDB){ resolve(null); return; }
       var req = indexedDB.open(IDB_NAME, 1);
       req.onupgradeneeded = function(e){
         var db = e.target.result;
-        if(!db.objectStoreNames.contains(IDB_STORE)){
-          db.createObjectStore(IDB_STORE);
-        }
+        if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
       };
       req.onsuccess = function(e){ resolve(e.target.result); };
       req.onerror = function(){ resolve(null); };
     });
   }
-
   function idbPut(key, val){
     return openDatabase().then(function(db){
       if(!db) return;
@@ -401,7 +571,6 @@ var STAGES = [
       });
     });
   }
-
   function idbGet(key){
     return openDatabase().then(function(db){
       if(!db) return null;
@@ -417,17 +586,10 @@ var STAGES = [
   /* ---------- State Persistence ---------- */
   function getStateSnapshot(){
     return {
-      headers: S.headers,
-      rows: S.rows,
-      map: S.map,
-      data: S.data,
-      sel: S.sel,
-      view: S.view,
-      open: S.open,
-      savedAt: S.savedAt
+      headers: S.headers, rows: S.rows, map: S.map, data: S.data,
+      sel: S.sel, view: S.view, open: S.open, savedAt: S.savedAt
     };
   }
-
   function applySnapshot(p){
     if(!p || typeof p !== "object") return false;
     S.headers = p.headers || [];
@@ -440,22 +602,22 @@ var STAGES = [
     S.savedAt = p.savedAt || 0;
     return true;
   }
-
   function save(quiet){
     S.savedAt = Date.now();
     var snap = getStateSnapshot();
-
-    // 1. Unlimited capacity storage (IndexedDB)
     idbPut(KEY, snap);
-
-    // 2. LocalStorage backup
-    try{
-      localStorage.setItem(KEY, JSON.stringify(snap));
-    }catch(e){}
-
+    try{ localStorage.setItem(KEY, JSON.stringify(snap)); }catch(e){}
     paintFoot();
     if(!quiet) toast("Saved");
   }
+
+  /* ---------- Live Sync Across Tabs (Same Browser) ---------- */
+  window.addEventListener("storage", function(e){
+    if(e.key === KEY && e.newValue){
+      try{ if(applySnapshot(JSON.parse(e.newValue))) render(); }catch(err){}
+    }
+    if(e.key === GH_KEY) paintGhUI();
+  });
 
   /* ---------- Column detection ---------- */
   var PAT = {
@@ -505,7 +667,6 @@ var STAGES = [
     st.items.forEach(function(it){ if(isDone(k,it.id)) c++; });
     return {c:c, total:st.items.length, pct: Math.round(c/st.items.length*100)};
   }
-
   function setDone(k,id,on){
     S.data[k] = S.data[k] || {};
     S.data[k][id] = S.data[k][id] || {};
@@ -520,7 +681,6 @@ var STAGES = [
     clearTimeout(_remTimer);
     _remTimer = setTimeout(function(){ save(true); }, 250);
   }
-
   function paintItem(k,id){
     var cb = document.querySelector('input.cb[data-i="'+id+'"]');
     if(!cb) return;
@@ -541,10 +701,10 @@ var STAGES = [
     }
   }
 
-  /* ---------- File Ingestion (One-Time Activity) ---------- */
+  /* ---------- File Ingestion ---------- */
   function parseCSV(txt){
     var rows=[], row=[], f="", q=false;
-    txt = txt.replace(/^﻿/,"");
+    txt = txt.replace(/^\uFEFF/,"");
     for(var i=0;i<txt.length;i++){
       var ch=txt[i];
       if(q){
@@ -564,15 +724,12 @@ var STAGES = [
     return {headers:hs, rows:rows.slice(1).map(function(r){
       var o={}; hs.forEach(function(h,i){ o[h] = r[i]==null?"":String(r[i]).trim(); }); return o; })};
   }
-
   function ingest(headers, rows){
     headers = headers.filter(function(h){ return String(h).trim()!==""; });
     if(!headers.length || !rows.length){ toast("No rows found in that file"); return; }
     S.headers = headers;
     S.map = detect(headers);
-    
-    var validRows = [];
-    var seen = {};
+    var validRows = [], seen = {};
     for(var i=0; i<rows.length; i++){
       var r = rows[i];
       if(!m("name",r) && !m("erp",r)) continue;
@@ -581,17 +738,11 @@ var STAGES = [
       seen[k] = 1;
       validRows.push(r);
     }
-
-    S.rows = validRows;
-    S.sel = ""; 
-    S.view = "sum";
-
-    // Save permanently into IndexedDB
+    S.rows = validRows; S.sel = ""; S.view = "sum";
     save(false);
-    toast("✔ Master loaded and saved permanently!");
+    toast("✔ Master loaded and saved!");
     render();
   }
-
   function readFile(f){
     if(!f) return;
     var isCSV = /\.csv$/i.test(f.name) || f.type==="text/csv";
@@ -601,9 +752,7 @@ var STAGES = [
       fr.onload = function(){ var p = parseCSV(String(fr.result)); ingest(p.headers, p.rows); };
       fr.readAsText(f); return;
     }
-    if(typeof XLSX === "undefined"){
-      toast("Excel reader did not load — save as CSV"); return;
-    }
+    if(typeof XLSX === "undefined"){ toast("Excel reader did not load — save as CSV"); return; }
     fr.onload = function(){
       try{
         var wb = XLSX.read(new Uint8Array(fr.result), {type:"array"});
@@ -638,11 +787,8 @@ var STAGES = [
     var r = {};
     r[S.map.name]=name; r[S.map.email]=email; r[S.map.erp]=erp; r.__manual = 1;
     var k = keyOf(r);
-    if(S.rows.some(function(x){ return keyOf(x)===k; })){
-      toast("Already in the list"); return false;
-    }
-    S.rows.push(r); 
-    save(true);
+    if(S.rows.some(function(x){ return keyOf(x)===k; })){ toast("Already in the list"); return false; }
+    S.rows.push(r); save(true);
     toast("Added — " + (name||erp));
     return true;
   }
@@ -654,13 +800,13 @@ var STAGES = [
     save(true); toast("Removed distributor"); render();
   }
 
-  /* ---------- Summary View ---------- */
+  /* ---------- Summary & Checklist Renderers ---------- */
   function renderSummary(){
     var host = $("sumcard");
     if(!S.rows.length){
       ["s-tot","s-done","s-wip","s-not"].forEach(function(i){ $(i).textContent = "0"; });
       host.innerHTML = '<div class="state"><strong>No distributors loaded yet</strong>'+
-        'Upload your Distributor Master once below, or add distributors manually.</div>';
+        'Upload your Distributor Master once below, pull from GitHub Sync, or add distributors manually.</div>';
       return;
     }
     var done=0, wip=0, not=0;
@@ -700,8 +846,6 @@ var STAGES = [
           '<td class="go">→</td></tr>';
       }).join("")+'</tbody></table>';
   }
-
-  /* ---------- Checklist View ---------- */
   function renderPicker(){
     var q = $("q").value.trim().toLowerCase(), sel = $("sel");
     sel.innerHTML = "";
@@ -722,7 +866,6 @@ var STAGES = [
     }
   }
   function selRow(){ return S.rows.filter(function(r){ return keyOf(r)===S.sel; })[0] || null; }
-
   function renderDetails(){
     var d = $("det"), r = selRow();
     if(!r){ d.classList.add("hide"); d.innerHTML=""; return; }
@@ -738,7 +881,6 @@ var STAGES = [
       'Added manually <button type="button" class="btn" id="delman" '+
       'style="padding:2px 8px;font-size:11.5px;margin-left:6px">Remove</button></div></div>' : "");
   }
-
   function renderProgress(){
     var card = $("progcard"), r = selRow();
     if(!r){ card.classList.add("hide"); return; }
@@ -755,7 +897,6 @@ var STAGES = [
       '<span class="pillc c"><i></i>'+c.c+' ticked</span>'+
       (c.left ? '<span class="pillc p"><i></i>'+c.left+' left</span>' : '');
   }
-
   function renderChecklist(){
     var host = $("stages"), empty = $("chkempty");
     if(!S.sel){
@@ -792,25 +933,19 @@ var STAGES = [
       '</section>';
     }).join("");
   }
-
   function paintFoot(){
     var f = $("footn"); if(!f) return;
     var who = S.rows.length
       ? Object.keys(S.data).length + " of " + S.rows.length + " distributors have progress"
       : "Nothing saved yet";
-    f.textContent = who + (S.savedAt ? " · last saved " + stamp(S.savedAt) : "") + " · auto-saved permanently in this browser.";
+    f.textContent = who + (S.savedAt ? " · last saved " + stamp(S.savedAt) : "") + " · auto-saved in this browser.";
   }
-
   function render(){
-    // Smart collapse of upload box once master is uploaded
+    paintGhUI();
     var hasRows = S.rows.length > 0;
     $("masterStatusBox").classList.toggle("hide", !hasRows);
     $("dropContainer").classList.toggle("hide", hasRows);
-
-    if(hasRows){
-      $("masterStatusMeta").textContent = S.rows.length + " distributors loaded · Master is permanently active.";
-    }
-
+    if(hasRows) $("masterStatusMeta").textContent = S.rows.length + " distributors loaded · Master is permanently active.";
     $("btnchk").disabled = !S.sel;
     document.querySelectorAll("#views button").forEach(function(b){
       b.setAttribute("aria-pressed", String(b.dataset.v === S.view));
@@ -821,28 +956,42 @@ var STAGES = [
     if(S.view==="sum") renderSummary();
     else { renderPicker(); renderDetails(); renderProgress(); renderChecklist(); }
   }
-
   function openDist(k){
     S.sel = k; S.view = "chk"; $("q").value = "";
-    save(true);
-    render();
+    save(true); render();
     try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){}
   }
 
   /* ---------- Event Listeners ---------- */
-  $("toggleUploadBtn").addEventListener("click", function(){
-    $("dropContainer").classList.toggle("hide");
+  $("ghSetBtn").addEventListener("click", openGhModal);
+  $("ghClose").addEventListener("click", closeGhModal);
+  $("ghModal").addEventListener("click", function(e){ if(e.target === $("ghModal")) closeGhModal(); });
+  $("ghPushBtn").addEventListener("click", ghPush);
+  $("ghPullNow").addEventListener("click", function(){ ghPull(false); closeGhModal(); });
+  $("ghClear").addEventListener("click", function(){
+    localStorage.removeItem(GH_KEY);
+    paintGhUI(); closeGhModal(); toast("GitHub Sync settings cleared");
+  });
+  $("ghSave").addEventListener("click", function(){
+    var owner = $("ghOwner").value.trim(),
+        repo = $("ghRepo").value.trim(),
+        branch = $("ghBranch").value.trim() || "main",
+        token = $("ghToken").value.trim();
+    if(!owner || !repo || !token){ toast("Fill in Owner, Repo, and Token"); return; }
+    localStorage.setItem(GH_KEY, JSON.stringify({owner:owner, repo:repo, branch:branch, token:token}));
+    paintGhUI(); closeGhModal();
+    toast("Sync settings saved — checking repo…");
+    ghPull(false);
   });
 
+  $("toggleUploadBtn").addEventListener("click", function(){ $("dropContainer").classList.toggle("hide"); });
   $("drop").addEventListener("click", function(){ $("file").click(); });
-  $("drop").addEventListener("keydown", function(e){
-    if(e.key==="Enter"||e.key===" "){ e.preventDefault(); $("file").click(); } });
+  $("drop").addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); $("file").click(); } });
   ["dragenter","dragover"].forEach(function(ev){
     $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("over"); }); });
   ["dragleave","drop"].forEach(function(ev){
     $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("over"); }); });
-  $("drop").addEventListener("drop", function(e){
-    if(e.dataTransfer && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+  $("drop").addEventListener("drop", function(e){ if(e.dataTransfer && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
   $("file").addEventListener("change", function(e){ readFile(e.target.files[0]); e.target.value=""; });
 
   $("manadd").addEventListener("click", function(){
@@ -852,62 +1001,33 @@ var STAGES = [
     }
   });
   ["mn","me","mi"].forEach(function(id){
-    $(id).addEventListener("keydown", function(e){
-      if(e.key === "Enter"){ e.preventDefault(); $("manadd").click(); } });
+    $(id).addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("manadd").click(); } });
   });
 
-  $("sumcard").addEventListener("click", function(e){
-    var tr = e.target.closest("tr[data-k]");
-    if(tr) openDist(tr.dataset.k);
-  });
-  $("sumcard").addEventListener("keydown", function(e){
-    if(e.key !== "Enter") return;
-    var tr = e.target.closest("tr[data-k]");
-    if(tr) openDist(tr.dataset.k);
-  });
+  $("sumcard").addEventListener("click", function(e){ var tr = e.target.closest("tr[data-k]"); if(tr) openDist(tr.dataset.k); });
+  $("sumcard").addEventListener("keydown", function(e){ if(e.key === "Enter"){ var tr = e.target.closest("tr[data-k]"); if(tr) openDist(tr.dataset.k); } });
 
-  $("back").addEventListener("click", function(){ 
-    S.view = "sum"; 
-    save(true);
-    render(); 
-  });
-  
+  $("back").addEventListener("click", function(){ S.view = "sum"; save(true); render(); });
   $("views").addEventListener("click", function(e){
     var b = e.target.closest("button[data-v]");
     if(!b || b.disabled) return;
-    S.view = b.dataset.v; 
-    save(true);
-    render();
+    S.view = b.dataset.v; save(true); render();
   });
 
   $("q").addEventListener("input", renderPicker);
-  $("sel").addEventListener("change", function(){
-    var v = $("sel").value;
-    if(v){ S.sel = v; save(true); render(); }
-  });
-  $("det").addEventListener("click", function(e){
-    if(e.target && e.target.id === "delman") removeManual(S.sel);
-  });
+  $("sel").addEventListener("change", function(){ var v = $("sel").value; if(v){ S.sel = v; save(true); render(); } });
+  $("det").addEventListener("click", function(e){ if(e.target && e.target.id === "delman") removeManual(S.sel); });
 
   $("stages").addEventListener("click", function(e){
     var h = e.target.closest(".sh");
-    if(h){ 
-      S.open[h.dataset.t] = !S.open[h.dataset.t]; 
-      save(true);
-      renderChecklist(); 
-    }
+    if(h){ S.open[h.dataset.t] = !S.open[h.dataset.t]; save(true); renderChecklist(); }
   });
-
-  // Realtime remarks and checkbox persistence
   $("stages").addEventListener("input", function(e){
-    var t = e.target.closest("textarea[data-r]");
-    if(t) setRemark(S.sel, t.dataset.r, t.value);
+    var t = e.target.closest("textarea[data-r]"); if(t) setRemark(S.sel, t.dataset.r, t.value);
   });
   $("stages").addEventListener("change", function(e){
-    var cb = e.target.closest("input.cb");
-    if(cb){ setDone(S.sel, cb.dataset.i, cb.checked); return; }
-    var t = e.target.closest("textarea[data-r]");
-    if(t) setRemark(S.sel, t.dataset.r, t.value);
+    var cb = e.target.closest("input.cb"); if(cb){ setDone(S.sel, cb.dataset.i, cb.checked); return; }
+    var t = e.target.closest("textarea[data-r]"); if(t) setRemark(S.sel, t.dataset.r, t.value);
   });
 
   $("clearm").addEventListener("click", function(){
@@ -955,9 +1075,7 @@ var STAGES = [
     fr.onload = function(){
       try{
         var p = JSON.parse(String(fr.result));
-        if(applySnapshot(p)){
-          save(true); toast("Backup restored"); render();
-        }
+        if(applySnapshot(p)){ save(true); toast("Backup restored"); render(); }
       }catch(err){ toast("Could not read backup file"); }
     };
     fr.readAsText(f); e.target.value="";
@@ -965,34 +1083,34 @@ var STAGES = [
 
   /* ---------- Unified Boot Engine ---------- */
   async function boot(){
-    // 1. Try instant localStorage
     try{
       var raw = localStorage.getItem(KEY);
       if(raw) applySnapshot(JSON.parse(raw));
     }catch(e){}
 
-    // 2. Load IndexedDB (handles large master files permanently)
     try{
       var idbData = await idbGet(KEY);
       if(idbData && idbData.rows && idbData.rows.length){
-        applySnapshot(idbData);
+        if(!S.savedAt || (idbData.savedAt || 0) >= S.savedAt) applySnapshot(idbData);
       }
     }catch(e){}
 
-    // 3. Fallback to GitHub repository file if clean deployment
-    if(!S.rows.length){
+    render();
+
+    // Auto-pull from GitHub API if configured, else fallback to static tracker-data.json
+    if(getGhCfg()){
+      await ghPull(true);
+    }else{
       try{
-        var res = await fetch("./tracker-data.json?cb=" + Date.now());
+        var res = await fetch("./" + GH_FILE + "?cb=" + Date.now());
         if(res.ok){
-          var p = await res.json();
-          if(applySnapshot(p)){
-            save(true);
+          var remote = await res.json();
+          if(remote && remote.rows && (!S.rows.length || (remote.savedAt || 0) > (S.savedAt || 0))){
+            if(applySnapshot(remote)){ save(true); render(); }
           }
         }
       }catch(e){}
     }
-
-    render();
   }
 
   boot();
