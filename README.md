@@ -170,9 +170,6 @@ input.cb{width:17px; height:17px; margin:3px 0 0; accent-color:var(--good); curs
   padding:34px 20px; text-align:center; color:var(--muted); font-size:14px}
 .state strong{display:block; color:var(--ink); font-family:var(--display); font-size:16px; margin-bottom:5px}
 .hide{display:none !important}
-.warn-bar{background:var(--warnbg); border:1px solid var(--warn); color:var(--warn);
-  border-radius:10px; padding:11px 13px; margin-bottom:14px; font-size:13.5px}
-.warn-bar strong{display:block; font-family:var(--display); font-size:14.5px; margin-bottom:3px}
 .toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--navy);
   color:var(--canvas); padding:7px 15px; border-radius:999px; font-size:12.5px; font-weight:600;
   opacity:0; transition:opacity .18s; pointer-events:none; z-index:9}
@@ -186,8 +183,6 @@ input.cb{width:17px; height:17px; margin:3px 0 0; accent-color:var(--good); curs
 </head>
 <body>
 <div class="wrap">
-
-  <div id="warn" class="warn-bar hide"></div>
 
   <div class="top">
     <div>
@@ -211,19 +206,34 @@ input.cb{width:17px; height:17px; margin:3px 0 0; accent-color:var(--good); curs
 
     <div class="card" style="padding:0;overflow-x:auto" id="sumcard"></div>
 
+    <!-- DISTRIBUTOR MASTER: Collapsed once uploaded -->
     <div class="card">
-      <h3 class="ch">Distributor master</h3>
-      <div class="up">
-        <div class="drop" id="drop" tabindex="0" role="button">
-          <strong>Upload Distributor Master</strong>
-          Drop an .xlsx or .csv here, or click to choose. Needs a header row with distributor name, email and ERP ID.
+      <div id="masterStatusBox" class="hide" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-weight:700;color:var(--good);display:flex;align-items:center;gap:6px">
+            <span style="font-size:16px">✔</span> Distributor Master Loaded & Permanently Saved
+          </div>
+          <div class="sub" id="masterStatusMeta" style="margin-top:2px">0 distributors loaded.</div>
         </div>
         <div class="row-acts">
-          <button type="button" class="btn" id="tmpl">Download template</button>
-          <button type="button" class="btn" id="clearm">Clear master</button>
+          <button type="button" class="btn" id="toggleUploadBtn">Replace / Update File</button>
+          <button type="button" class="btn" id="clearm">Clear Master</button>
         </div>
       </div>
-      <div id="upinfo" class="sub hide" style="margin-top:10px"></div>
+
+      <div id="dropContainer">
+        <h3 class="ch">Upload Distributor Master</h3>
+        <div class="up">
+          <div class="drop" id="drop" tabindex="0" role="button">
+            <strong>Upload Distributor Master</strong>
+            Drop an .xlsx or .csv here, or click to choose. (One-time activity — saved permanently).
+          </div>
+          <div class="row-acts">
+            <button type="button" class="btn" id="tmpl">Download template</button>
+          </div>
+        </div>
+        <div id="upinfo" class="sub hide" style="margin-top:10px"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -274,117 +284,86 @@ input.cb{width:17px; height:17px; margin:3px 0 0; accent-color:var(--good); curs
   </div>
 
   <div class="foot">
-    <span id="footn">Nothing saved yet.</span>
+    <span id="footn">Auto-saving active.</span>
     <span class="row-acts">
       <button type="button" class="btn" id="expcsv">Export progress (CSV)</button>
-      <button type="button" class="btn" id="expjson">Download backup</button>
+      <button type="button" class="btn" id="expjson">Download backup (JSON)</button>
       <button type="button" class="btn" id="impjson">Restore backup</button>
     </span>
   </div>
 </div>
+
 <input type="file" id="file" accept=".xlsx,.xls,.csv,text/csv" hidden>
 <input type="file" id="bfile" accept="application/json" hidden>
 <div class="toast" id="toast" role="status" aria-live="polite">Saved</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
-/* Checkpoints traced to FA_Connect_Tally_Integration_SOP.docx. */
 var STAGES = [
  {id:"A", name:"Environment pre-checks", note:"Settle these before the request goes out — each one changes how the rest of the onboarding runs.", items:[
-  {id:"A1", t:"Distributor machine is on Windows 10 or later",
-   d:"Confirm the OS of the machine that actually runs Tally. The FieldAssistChecker installer is a Windows desktop installer.", src:"Added check"},
-  {id:"A2", t:"A new company is being created in Tally for the integration",
-   d:"The connector attaches to a dedicated company (reference setup: DMS Connect). Confirm they are creating a new one and not pointing it at their live billing company.", src:"Added check · SOP §5.2"},
-  {id:"A3", t:"Tally database location checked — local, not Tally Cloud",
-   d:"Just establish where the Tally company data sits. A local Tally installation is the recommended setup: the connector installs on the machine running Tally, so a cloud-hosted database complicates both the install and the sync. Mark Completed once confirmed local. If they are on Tally Cloud, leave it Pending and note it in remarks before going further.", src:"Added check"},
-  {id:"A4", t:"DMS confirmed as the system of record",
-   d:"If the distributor is still billing out of Tally, stop and fix that before going further.", src:"SOP §5 callout"},
-  {id:"A5", t:"Distributor told the Tally company becomes read-only",
-   d:"Once the connector is live, master alteration and manual transaction entry are blocked and everything is entered in DMS. Get this accepted up front.", src:"SOP §5 callout"}
+  {id:"A1", t:"Distributor machine is on Windows 10 or later", d:"Confirm the OS of the machine that actually runs Tally. The FieldAssistChecker installer is a Windows desktop installer.", src:"Added check"},
+  {id:"A2", t:"A new company is being created in Tally for the integration", d:"The connector attaches to a dedicated company (reference setup: DMS Connect). Confirm they are creating a new one and not pointing it at their live billing company.", src:"Added check · SOP §5.2"},
+  {id:"A3", t:"Tally database location checked — local, not Tally Cloud", d:"Just establish where the Tally company data sits. Local Tally installation is recommended.", src:"Added check"},
+  {id:"A4", t:"DMS confirmed as the system of record", d:"If the distributor is still billing out of Tally, stop and fix that before going further.", src:"SOP §5 callout"},
+  {id:"A5", t:"Distributor told the Tally company becomes read-only", d:"Once the connector is live, master alteration and manual transaction entry are blocked.", src:"SOP §5 callout"}
  ]},
- {id:"B", name:"FA admin — send the onboarding request", note:"All five steps in the FA Connect dashboard at fa-connect.fieldassist.io. About five minutes per distributor.", items:[
-  {id:"B1", t:"Distributor located in Manage Distributors",
-   d:"Search by name, ERP ID or city. Filter by State or Software if the name is common.", src:"SOP §4.2"},
-  {id:"B2", t:"Software set to Tally on the distributor row",
-   d:"The row will not accept a request until a software is set.", src:"SOP §4.3"},
-  {id:"B3", t:"Sync-from date set to the go-live date, not today",
-   d:"Configure → Sync External Secondary Invoices from. Too late and you lose history; too early and you flood their Tally with invoices they have already booked.", src:"SOP §4.4 + callout"},
-  {id:"B4", t:"Send Request clicked — status moved to Request Sent",
-   d:"Action column → Send Request.", src:"SOP §4.5"},
-  {id:"B5", t:"Onboarding email received by the distributor",
-   d:"Carries the plugin download and their credentials. If they have gone quiet, use Resend distributor onboarding message rather than a fresh request.", src:"SOP §4.5"}
+ {id:"B", name:"FA admin — send the onboarding request", note:"All five steps in the FA Connect dashboard at fa-connect.fieldassist.io.", items:[
+  {id:"B1", t:"Distributor located in Manage Distributors", d:"Search by name, ERP ID or city.", src:"SOP §4.2"},
+  {id:"B2", t:"Software set to Tally on the distributor row", d:"The row will not accept a request until a software is set.", src:"SOP §4.3"},
+  {id:"B3", t:"Sync-from date set to the go-live date, not today", d:"Configure → Sync External Secondary Invoices from.", src:"SOP §4.4 + callout"},
+  {id:"B4", t:"Send Request clicked — status moved to Request Sent", d:"Action column → Send Request.", src:"SOP §4.5"},
+  {id:"B5", t:"Onboarding email received by the distributor", d:"Carries the plugin download and credentials.", src:"SOP §4.5"}
  ]},
- {id:"C", name:"Distributor — Tally setup", note:"Runs on the distributor's own machine. Walk them through it on a call the first time; steps C2 and C5 are where most stall.", items:[
-  {id:"C1", t:"Onboarding email opened and credentials retained",
-   d:"The same credentials are needed again if Tally is reinstalled, so the mail must be kept.", src:"SOP §5.1"},
-  {id:"C2", t:"Company and ledgers created in Tally",
-   d:"The company must exist before the connector can attach to it.", src:"SOP §5.2"},
-  {id:"C3", t:"FieldAssistChecker connector installed on the Tally machine",
-   d:"Run the installer from the email, accept the licence, finish the wizard. Not on a server elsewhere.", src:"SOP §5.3"},
-  {id:"C4", t:"FieldAssist Integration visible in Gateway of Tally → Utilities",
-   d:"If it is missing, the install did not complete or went on the wrong machine.", src:"SOP §5.4"},
-  {id:"C5", t:"Logged in through option 1 with the email credentials",
-   d:"FieldAssist Integration → 1 (Login).", src:"SOP §5.5"},
-  {id:"C6", t:"Import Ledgers run",
-   d:"Pulls every buyer in DMS into Tally so both sides start from the same masters.", src:"SOP §5.6"},
-  {id:"C7", t:"Import Stock Items run",
-   d:"Same for products. Skipping this is a common cause of later item-mapping failures.", src:"SOP §5.6"}
+ {id:"C", name:"Distributor — Tally setup", note:"Runs on the distributor's own machine.", items:[
+  {id:"C1", t:"Onboarding email opened and credentials retained", d:"Credentials needed again if Tally is reinstalled.", src:"SOP §5.1"},
+  {id:"C2", t:"Company and ledgers created in Tally", d:"Company must exist before connector can attach.", src:"SOP §5.2"},
+  {id:"C3", t:"FieldAssistChecker connector installed on the Tally machine", d:"Run the installer from the email on the Tally machine.", src:"SOP §5.3"},
+  {id:"C4", t:"FieldAssist Integration visible in Gateway of Tally → Utilities", d:"If missing, installer did not finish.", src:"SOP §5.4"},
+  {id:"C5", t:"Logged in through option 1 with the email credentials", d:"FieldAssist Integration → 1 (Login).", src:"SOP §5.5"},
+  {id:"C6", t:"Import Ledgers run", d:"Pulls every buyer in DMS into Tally.", src:"SOP §5.6"},
+  {id:"C7", t:"Import Stock Items run", d:"Pulls stock items into Tally.", src:"SOP §5.6"}
  ]},
- {id:"D", name:"Mapping and approval", note:"The status tells you whose court the ball is in. Nothing moves until that party acts.", items:[
-  {id:"D1", t:"Status moved off Distributor Pending to Admin Pending",
-   d:"Distributor side is done; waiting on FA approval.", src:"SOP §2"},
-  {id:"D2", t:"FA admin approval completed",
-   d:"Clears Admin Pending.", src:"SOP §2"},
-  {id:"D3", t:"Masters and fields mapped — status reads Mapping Done",
-   d:"Data can flow from this point.", src:"SOP §2"},
-  {id:"D4", t:"Buyers mapping at 100%",
-   d:"Distributor detail → Customer Data Sync → View on Buyers. An unmapped buyer silently withholds its invoices — it is not failed, it simply never appears.", src:"SOP §9.1"},
-  {id:"D5", t:"Stock items / products mapped",
-   d:"Unmapped items are the second most common cause of a missing invoice.", src:"SOP §9.1"}
+ {id:"D", name:"Mapping and approval", note:"Check customer and stock item mapping.", items:[
+  {id:"D1", t:"Status moved off Distributor Pending to Admin Pending", d:"Distributor side is done.", src:"SOP §2"},
+  {id:"D2", t:"FA admin approval completed", d:"Clears Admin Pending.", src:"SOP §2"},
+  {id:"D3", t:"Masters and fields mapped — status reads Mapping Done", d:"Data can flow from this point.", src:"SOP §2"},
+  {id:"D4", t:"Buyers mapping at 100%", d:"Check Customers data sync.", src:"SOP §9.1"},
+  {id:"D5", t:"Stock items / products mapped", d:"Check Product data sync.", src:"SOP §9.1"}
  ]},
- {id:"E", name:"Invoice validation before go-live", note:"Do this before declaring the distributor live, and again whenever they dispute a number. Transaction Data Sync → Sales Invoices → View.", items:[
-  {id:"E1", t:"Invoice number matches the Tally voucher exactly",
-   d:"", src:"SOP §9.2"},
-  {id:"E2", t:"Tally invoice date matches — not the sync date",
-   d:"", src:"SOP §9.2"},
-  {id:"E3", t:"Buyer firm correct and Buyer Status reads Mapped",
-   d:"", src:"SOP §9.2"},
-  {id:"E4", t:"Item and quantity match, in the same unit",
-   d:"Pcs against Cases is the classic failure. Check the unit, not just the number.", src:"SOP §9.2"},
-  {id:"E5", t:"Total value matches to the rupee",
-   d:"", src:"SOP §9.2"},
-  {id:"E6", t:"No invoice sitting in Failed status",
-   d:"Failed matters more than the sync percentage.", src:"SOP §9.2, §8 callout"},
-  {id:"E7", t:"Line-level check done via Download Excel or Item Wise Invoice Report",
-   d:"On more than a handful of invoices the export is faster and auditable.", src:"SOP §9.2"}
+ {id:"E", name:"Invoice validation before go-live", note:"Validate line-level data before go-live.", items:[
+  {id:"E1", t:"Invoice number matches the Tally voucher exactly", d:"", src:"SOP §9.2"},
+  {id:"E2", t:"Tally invoice date matches — not the sync date", d:"", src:"SOP §9.2"},
+  {id:"E3", t:"Buyer firm correct and Buyer Status reads Mapped", d:"", src:"SOP §9.2"},
+  {id:"E4", t:"Item and quantity match, in the same unit", d:"Verify units match.", src:"SOP §9.2"},
+  {id:"E5", t:"Total value matches to the rupee", d:"", src:"SOP §9.2"},
+  {id:"E6", t:"No invoice sitting in Failed status", d:"Failed status must be resolved.", src:"SOP §9.2"},
+  {id:"E7", t:"Line-level check done via Download Excel", d:"Verify line items.", src:"SOP §9.2"}
  ]},
- {id:"F", name:"Go-live and handover", note:"Auto-sync runs every 15 to 30 minutes once Synced. Nothing is real-time, so a missing invoice is not a fault until half an hour has passed.", items:[
-  {id:"F1", t:"Auto-sync observed completing a cycle",
-   d:"Confirms the connector is live rather than just installed.", src:"SOP §6"},
-  {id:"F2", t:"Status reads Synced",
-   d:"Live Tally to ERP sync is running.", src:"SOP §2"},
-  {id:"F3", t:"Sync Health at 100% across document types",
-   d:"GRNs, Sales Invoices, Credit Notes. Anything under 100% needs a look before sign-off.", src:"SOP §2, §7.4"},
-  {id:"F4", t:"Daily monitoring routine handed to the owning CSM",
-   d:"The ten-minute daily check in section 8 of the SOP.", src:"SOP §8"},
-  {id:"F5", t:"Credentials handled safely — onboarding email not circulated",
-   d:"The real email carries the username and password in plain text.", src:"SOP §5.1 caption"}
+ {id:"F", name:"Go-live and handover", note:"Verify continuous sync.", items:[
+  {id:"F1", t:"Auto-sync observed completing a cycle", d:"Confirms connector is active.", src:"SOP §6"},
+  {id:"F2", t:"Status reads Synced", d:"Live sync is running.", src:"SOP §2"},
+  {id:"F3", t:"Sync Health at 100% across document types", d:"GRNs, Sales Invoices, Credit Notes.", src:"SOP §2"},
+  {id:"F4", t:"Daily monitoring routine handed to the owning CSM", d:"Handover complete.", src:"SOP §8"},
+  {id:"F5", t:"Credentials handled safely", d:"Keep passwords secure.", src:"SOP §5.1"}
  ]}
 ];
 
 (function(){
   "use strict";
-  var KEY = "fa_tally_onboarding_v1";
+  var KEY = "fa_tally_onboarding_data_v2";
+  var IDB_NAME = "FATallyTrackerDB";
+  var IDB_STORE = "tracker_store";
   var ALL = []; STAGES.forEach(function(s){ s.items.forEach(function(i){ ALL.push(i); }); });
   var N = ALL.length;
 
-  var S = { headers:[], rows:[], map:{}, data:{}, sel:"", view:"sum",
-            open:{A:true}, savedAt:0, storageOK:true };
+  var S = { headers:[], rows:[], map:{}, data:{}, sel:"", view:"sum", open:{A:true}, savedAt:0 };
 
   var $ = function(id){ return document.getElementById(id); };
+
   function toast(m){
     var t = $("toast"); t.textContent = m; t.classList.add("on");
-    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("on"); }, 1400);
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("on"); }, 1800);
   }
   function esc(v){ return String(v==null?"":v).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
@@ -395,65 +374,90 @@ var STAGES = [
            d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
   }
 
-  /* ---------- storage ---------- */
-  function probe(){
-    try{
-      var t = KEY + "__probe";
-      localStorage.setItem(t,"1");
-      var ok = localStorage.getItem(t) === "1";
-      localStorage.removeItem(t);
-      return ok;
-    }catch(e){ return false; }
-  }
-  function showWarn(){
-    var w = $("warn");
-    w.classList.remove("hide");
-    w.innerHTML = "<strong>This browser is not saving your progress</strong>" +
-      "Local storage is blocked for this page, so anything you tick will be lost once you close it. " +
-      "Use Download backup before you finish.";
+  /* ---------- Unlimited IndexedDB Engine ---------- */
+  function openDatabase(){
+    return new Promise(function(resolve, reject){
+      if(!window.indexedDB){ resolve(null); return; }
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function(e){
+        var db = e.target.result;
+        if(!db.objectStoreNames.contains(IDB_STORE)){
+          db.createObjectStore(IDB_STORE);
+        }
+      };
+      req.onsuccess = function(e){ resolve(e.target.result); };
+      req.onerror = function(){ resolve(null); };
+    });
   }
 
-  /* Saves all data, plus the exact state (active distributor, view, and open stages) */
+  function idbPut(key, val){
+    return openDatabase().then(function(db){
+      if(!db) return;
+      return new Promise(function(resolve){
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(val, key);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ resolve(); };
+      });
+    });
+  }
+
+  function idbGet(key){
+    return openDatabase().then(function(db){
+      if(!db) return null;
+      return new Promise(function(resolve){
+        var tx = db.transaction(IDB_STORE, "readonly");
+        var req = tx.objectStore(IDB_STORE).get(key);
+        req.onsuccess = function(){ resolve(req.result || null); };
+        req.onerror = function(){ resolve(null); };
+      });
+    });
+  }
+
+  /* ---------- State Persistence ---------- */
+  function getStateSnapshot(){
+    return {
+      headers: S.headers,
+      rows: S.rows,
+      map: S.map,
+      data: S.data,
+      sel: S.sel,
+      view: S.view,
+      open: S.open,
+      savedAt: S.savedAt
+    };
+  }
+
+  function applySnapshot(p){
+    if(!p || typeof p !== "object") return false;
+    S.headers = p.headers || [];
+    S.rows = p.rows || [];
+    S.map = p.map || {};
+    S.data = p.data || {};
+    S.sel = p.sel || "";
+    S.view = (p.view === "chk" && p.sel) ? "chk" : "sum";
+    S.open = p.open || {A:true};
+    S.savedAt = p.savedAt || 0;
+    return true;
+  }
+
   function save(quiet){
     S.savedAt = Date.now();
-    try{
-      localStorage.setItem(KEY, JSON.stringify({
-        headers: S.headers,
-        rows: S.rows,
-        map: S.map,
-        data: S.data,
-        sel: S.sel,
-        view: S.view,
-        open: S.open,
-        savedAt: S.savedAt
-      }));
-      S.storageOK = true; paintFoot();
-      if(!quiet) toast("Saved");
-    }catch(e){
-      S.storageOK = false; paintFoot(); showWarn();
-      toast("NOT saved — use Download backup");
-    }
-  }
+    var snap = getStateSnapshot();
 
-  /* Loads everything back exactly as it was when the user closed the page */
-  function load(){
-    var raw=null; try{ raw = localStorage.getItem(KEY); }catch(e){}
-    if(!raw) return;
+    // 1. Unlimited capacity storage (IndexedDB)
+    idbPut(KEY, snap);
+
+    // 2. LocalStorage backup
     try{
-      var p = JSON.parse(raw);
-      S.headers = p.headers || [];
-      S.rows = p.rows || [];
-      S.map = p.map || {};
-      S.data = p.data || {};
-      S.sel = p.sel || "";
-      // If user was viewing a checklist, restore that checklist directly
-      S.view = (p.view === "chk" && p.sel) ? "chk" : "sum";
-      S.open = p.open || {A:true};
-      S.savedAt = p.savedAt || 0;
+      localStorage.setItem(KEY, JSON.stringify(snap));
     }catch(e){}
+
+    paintFoot();
+    if(!quiet) toast("Saved");
   }
 
-  /* ---------- column detection ---------- */
+  /* ---------- Column detection ---------- */
   var PAT = {
     name  : /^(distributor\s*name|dist\s*name|firm\s*name|party\s*name|customer\s*name|name)$/i,
     erp   : /(erp\s*id|erpid|distributor\s*code|dist\s*code|customer\s*code|party\s*code|\bcode\b)/i,
@@ -483,7 +487,7 @@ var STAGES = [
     return n + (e ? "  —  " + e : "");
   }
 
-  /* ---------- scoring: ticked or not ---------- */
+  /* ---------- Scoring & Checklists ---------- */
   function recOf(k){ return S.data[k] || {}; }
   function isDone(k,id){ var r = recOf(k)[id]; return !!(r && r.s === "c"); }
   function remarkOf(k,id){ var r = recOf(k)[id]; return (r && r.r) || ""; }
@@ -508,12 +512,15 @@ var STAGES = [
     S.data[k][id].s = on ? "c" : "";
     save(true); paintItem(k,id); renderProgress(); renderPicker();
   }
+  var _remTimer = null;
   function setRemark(k,id,v){
     S.data[k] = S.data[k] || {};
     S.data[k][id] = S.data[k][id] || {};
     S.data[k][id].r = v;
-    save(true);
+    clearTimeout(_remTimer);
+    _remTimer = setTimeout(function(){ save(true); }, 250);
   }
+
   function paintItem(k,id){
     var cb = document.querySelector('input.cb[data-i="'+id+'"]');
     if(!cb) return;
@@ -534,7 +541,7 @@ var STAGES = [
     }
   }
 
-  /* ---------- file parsing ---------- */
+  /* ---------- File Ingestion (One-Time Activity) ---------- */
   function parseCSV(txt){
     var rows=[], row=[], f="", q=false;
     txt = txt.replace(/^﻿/,"");
@@ -557,18 +564,34 @@ var STAGES = [
     return {headers:hs, rows:rows.slice(1).map(function(r){
       var o={}; hs.forEach(function(h,i){ o[h] = r[i]==null?"":String(r[i]).trim(); }); return o; })};
   }
+
   function ingest(headers, rows){
     headers = headers.filter(function(h){ return String(h).trim()!==""; });
     if(!headers.length || !rows.length){ toast("No rows found in that file"); return; }
-    S.headers = headers; S.rows = rows; S.map = detect(headers);
-    S.rows = S.rows.filter(function(r){ return m("name",r) || m("erp",r); });
+    S.headers = headers;
+    S.map = detect(headers);
+    
+    var validRows = [];
     var seen = {};
-    S.rows = S.rows.filter(function(r){ var k=keyOf(r); if(seen[k]) return false; seen[k]=1; return true; });
-    S.sel = ""; S.view = "sum";
-    save(true);
-    toast(S.rows.length + " distributors loaded");
+    for(var i=0; i<rows.length; i++){
+      var r = rows[i];
+      if(!m("name",r) && !m("erp",r)) continue;
+      var k = keyOf(r);
+      if(seen[k]) continue;
+      seen[k] = 1;
+      validRows.push(r);
+    }
+
+    S.rows = validRows;
+    S.sel = ""; 
+    S.view = "sum";
+
+    // Save permanently into IndexedDB
+    save(false);
+    toast("✔ Master loaded and saved permanently!");
     render();
   }
+
   function readFile(f){
     if(!f) return;
     var isCSV = /\.csv$/i.test(f.name) || f.type==="text/csv";
@@ -579,7 +602,7 @@ var STAGES = [
       fr.readAsText(f); return;
     }
     if(typeof XLSX === "undefined"){
-      toast("Excel reader did not load — save the sheet as CSV and upload that"); return;
+      toast("Excel reader did not load — save as CSV"); return;
     }
     fr.onload = function(){
       try{
@@ -594,12 +617,12 @@ var STAGES = [
         var rows = aoa.slice(hi+1).map(function(r){
           var o={}; hs.forEach(function(h,j){ o[h] = r[j]==null?"":String(r[j]).trim(); }); return o; });
         ingest(hs, rows);
-      }catch(e){ toast("Could not read that workbook — try saving it as CSV"); }
+      }catch(e){ toast("Could not read workbook — try CSV format"); }
     };
     fr.readAsArrayBuffer(f);
   }
 
-  /* ---------- manual add ---------- */
+  /* ---------- Manual Add ---------- */
   function ensureCols(){
     [["name","Distributor Name"],["erp","ERP ID"],["email","Email"]].forEach(function(p){
       if(!S.map[p[0]]){
@@ -618,7 +641,8 @@ var STAGES = [
     if(S.rows.some(function(x){ return keyOf(x)===k; })){
       toast("Already in the list"); return false;
     }
-    S.rows.push(r); save(true);
+    S.rows.push(r); 
+    save(true);
     toast("Added — " + (name||erp));
     return true;
   }
@@ -627,17 +651,16 @@ var STAGES = [
     if(!r || !r.__manual) return;
     S.rows = S.rows.filter(function(x){ return keyOf(x)!==k; });
     if(S.sel===k){ S.sel=""; S.view="sum"; }
-    save(true); toast("Removed — its checklist progress is kept"); render();
+    save(true); toast("Removed distributor"); render();
   }
 
-  /* ---------- summary ---------- */
+  /* ---------- Summary View ---------- */
   function renderSummary(){
     var host = $("sumcard");
     if(!S.rows.length){
       ["s-tot","s-done","s-wip","s-not"].forEach(function(i){ $(i).textContent = "0"; });
-      host.innerHTML = '<div class="state"><strong>No distributors yet</strong>'+
-        'Upload your Distributor Master below, or add one manually. '+
-        'Each one then gets the '+N+'-point Tally SOP checklist.</div>';
+      host.innerHTML = '<div class="state"><strong>No distributors loaded yet</strong>'+
+        'Upload your Distributor Master once below, or add distributors manually.</div>';
       return;
     }
     var done=0, wip=0, not=0;
@@ -678,7 +701,7 @@ var STAGES = [
       }).join("")+'</tbody></table>';
   }
 
-  /* ---------- checklist ---------- */
+  /* ---------- Checklist View ---------- */
   function renderPicker(){
     var q = $("q").value.trim().toLowerCase(), sel = $("sel");
     sel.innerHTML = "";
@@ -737,8 +760,7 @@ var STAGES = [
     var host = $("stages"), empty = $("chkempty");
     if(!S.sel){
       host.innerHTML = "";
-      empty.innerHTML = '<div class="state"><strong>No distributor selected</strong>'+
-        'Go back to the summary and click a row.</div>';
+      empty.innerHTML = '<div class="state"><strong>No distributor selected</strong>Go back to the summary and click a row.</div>';
       return;
     }
     empty.innerHTML = "";
@@ -771,30 +793,24 @@ var STAGES = [
     }).join("");
   }
 
-  /* ---------- chrome ---------- */
   function paintFoot(){
     var f = $("footn"); if(!f) return;
-    if(!S.storageOK){
-      f.innerHTML = '<b style="color:var(--crit)">Not being saved</b> — this browser is blocking '+
-                    'storage for this page. Download a backup.';
-      return;
-    }
     var who = S.rows.length
-      ? Object.keys(S.data).length + " of " + S.rows.length + " distributors have saved progress"
+      ? Object.keys(S.data).length + " of " + S.rows.length + " distributors have progress"
       : "Nothing saved yet";
-    f.textContent = who + (S.savedAt ? " · last saved " + stamp(S.savedAt) : "") +
-      " · auto-saved on this device.";
+    f.textContent = who + (S.savedAt ? " · last saved " + stamp(S.savedAt) : "") + " · auto-saved permanently in this browser.";
   }
 
   function render(){
-    $("upinfo").classList.toggle("hide", !S.rows.length);
-    if(S.rows.length){
-      var mapped = ["name","erp","email","mobile","city","state"]
-        .filter(function(k){ return S.map[k]; })
-        .map(function(k){ return k+" ← “"+S.map[k]+"”"; }).join("  ·  ");
-      $("upinfo").innerHTML = "<strong>"+S.rows.length+" distributors</strong> from "+
-        S.headers.length+" columns. Detected: "+esc(mapped||"nothing — check the header row");
+    // Smart collapse of upload box once master is uploaded
+    var hasRows = S.rows.length > 0;
+    $("masterStatusBox").classList.toggle("hide", !hasRows);
+    $("dropContainer").classList.toggle("hide", hasRows);
+
+    if(hasRows){
+      $("masterStatusMeta").textContent = S.rows.length + " distributors loaded · Master is permanently active.";
     }
+
     $("btnchk").disabled = !S.sel;
     document.querySelectorAll("#views button").forEach(function(b){
       b.setAttribute("aria-pressed", String(b.dataset.v === S.view));
@@ -808,12 +824,16 @@ var STAGES = [
 
   function openDist(k){
     S.sel = k; S.view = "chk"; $("q").value = "";
-    save(true); // Save current view and active distributor
+    save(true);
     render();
     try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){}
   }
 
-  /* ---------- events ---------- */
+  /* ---------- Event Listeners ---------- */
+  $("toggleUploadBtn").addEventListener("click", function(){
+    $("dropContainer").classList.toggle("hide");
+  });
+
   $("drop").addEventListener("click", function(){ $("file").click(); });
   $("drop").addEventListener("keydown", function(e){
     if(e.key==="Enter"||e.key===" "){ e.preventDefault(); $("file").click(); } });
@@ -848,7 +868,7 @@ var STAGES = [
 
   $("back").addEventListener("click", function(){ 
     S.view = "sum"; 
-    save(true); // Persist that user returned to summary
+    save(true);
     render(); 
   });
   
@@ -873,12 +893,12 @@ var STAGES = [
     var h = e.target.closest(".sh");
     if(h){ 
       S.open[h.dataset.t] = !S.open[h.dataset.t]; 
-      save(true); // Persist accordion state
+      save(true);
       renderChecklist(); 
     }
   });
 
-  /* Auto-save remarks on every keystroke and checkboxes immediately */
+  // Realtime remarks and checkbox persistence
   $("stages").addEventListener("input", function(e){
     var t = e.target.closest("textarea[data-r]");
     if(t) setRemark(S.sel, t.dataset.r, t.value);
@@ -891,9 +911,9 @@ var STAGES = [
   });
 
   $("clearm").addEventListener("click", function(){
-    if(!confirm("Clear all loaded distributors from the master list?")) return;
+    if(!confirm("Clear the distributor master? All distributors will be removed.")) return;
     S.headers=[]; S.rows=[]; S.map={}; S.sel=""; S.view="sum";
-    save(true); toast("Master cleared — checklist progress kept"); render();
+    save(true); toast("Master cleared"); render();
   });
 
   function dl(name, text, mime){
@@ -907,8 +927,7 @@ var STAGES = [
 
   $("tmpl").addEventListener("click", function(){
     dl("distributor-master-template.csv",
-      "Distributor Name,ERP ID,Email\n"+
-      "Shree Sales Agency,CUS000580,shree.sales@example.com\n", "text/csv;charset=utf-8");
+      "Distributor Name,ERP ID,Email\nShree Sales Agency,CUS000580,shree.sales@example.com\n", "text/csv;charset=utf-8");
   });
   $("expcsv").addEventListener("click", function(){
     if(!S.rows.length){ toast("Nothing to export yet"); return; }
@@ -923,13 +942,11 @@ var STAGES = [
         });
       });
     });
-    dl("tally-onboarding-progress-"+new Date().toISOString().slice(0,10)+".csv",
-       out.join("\n"), "text/csv;charset=utf-8");
+    dl("tally-onboarding-progress-"+new Date().toISOString().slice(0,10)+".csv", out.join("\n"), "text/csv;charset=utf-8");
   });
   $("expjson").addEventListener("click", function(){
     dl("tally-onboarding-backup-"+new Date().toISOString().slice(0,10)+".json",
-       JSON.stringify({headers:S.headers, rows:S.rows, map:S.map, data:S.data, sel:S.sel, view:S.view, open:S.open}, null, 1),
-       "application/json");
+       JSON.stringify(getStateSnapshot(), null, 1), "application/json");
   });
   $("impjson").addEventListener("click", function(){ $("bfile").click(); });
   $("bfile").addEventListener("change", function(e){
@@ -938,41 +955,47 @@ var STAGES = [
     fr.onload = function(){
       try{
         var p = JSON.parse(String(fr.result));
-        if(!p || typeof p !== "object") throw 0;
-        S.headers = p.headers||[]; S.rows = p.rows||[]; S.map = p.map||{}; S.data = p.data||{};
-        S.sel = p.sel || ""; S.view = p.view || "sum"; S.open = p.open || {A:true};
-        save(true); toast("Backup restored"); render();
-      }catch(err){ toast("That backup could not be read"); }
+        if(applySnapshot(p)){
+          save(true); toast("Backup restored"); render();
+        }
+      }catch(err){ toast("Could not read backup file"); }
     };
     fr.readAsText(f); e.target.value="";
   });
 
-  /* Initial Load & GitHub Remote Sync */
-  async function start(){
-    load();
-    S.storageOK = probe();
-    if(!S.storageOK) showWarn();
-    
-    // Auto-fetch shared tracker-data.json if deployed on GitHub Pages with committed data
+  /* ---------- Unified Boot Engine ---------- */
+  async function boot(){
+    // 1. Try instant localStorage
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw) applySnapshot(JSON.parse(raw));
+    }catch(e){}
+
+    // 2. Load IndexedDB (handles large master files permanently)
+    try{
+      var idbData = await idbGet(KEY);
+      if(idbData && idbData.rows && idbData.rows.length){
+        applySnapshot(idbData);
+      }
+    }catch(e){}
+
+    // 3. Fallback to GitHub repository file if clean deployment
     if(!S.rows.length){
       try{
         var res = await fetch("./tracker-data.json?cb=" + Date.now());
         if(res.ok){
           var p = await res.json();
-          if(p && p.rows && p.rows.length){
-            S.headers = p.headers || [];
-            S.rows = p.rows || [];
-            S.map = p.map || {};
-            S.data = p.data || {};
+          if(applySnapshot(p)){
             save(true);
           }
         }
-      }catch(err){}
+      }catch(e){}
     }
+
     render();
   }
 
-  start();
+  boot();
 })();
 </script>
 </body>
